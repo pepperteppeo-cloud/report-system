@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { format, addDays, startOfWeek, startOfMonth, startOfQuarter } from "date-fns";
 import { vi } from "date-fns/locale";
 import axios from "axios";
 
 // ===== CONFIG =====
-const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGL9nTHPiGRz21ekpVZi0cY81KtR9jU_6rlDmjmpL36v7f4TF01MtRi-Fnfh0KaC52/exec";
+const HF_TOKEN = "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";
 
 const LOGO_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAICAgIChAoKAcKDAxLDA4SEA0RDg4TDg4UEBATExAREBESFRkTExQoFRgXFRgYGxj/2wBDAQcHBwoIChMKChMoGBgaKDg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4GBj/wAARCAAKAAsDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8VAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA8A/9k=";
 
@@ -100,35 +100,51 @@ Trích xuất thông tin quan trọng từ tài liệu và trả về JSON:
   "alerts": ["cảnh báo nếu có vấn đề"]
 }`;
 
-  try {
-    const response = await axios.post("https://api.openai.com/v1/chat/completions", {
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "user",
-          content: isPDF 
-            ? [
-                { type: "text", text: prompt },
-                { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}`, detail: "low" } }
-              ]
-            : [{ type: "text", text: prompt + "\n\nFile: " + file.name }]
-        }
-      ],
-      max_tokens: 1000,
-      temperature: 0.3
-    }, {
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      }
-    });
+try {
+    // 1. Định nghĩa mô hình mã nguồn mở miễn phí xuất sắc nhất hiện nay
+    const model = "Qwen/Qwen2.5-72B-Instruct"; 
 
-    const text = response.data.choices[0].message.content;
+    // 2. Chuẩn hóa nội dung gửi đi (Hugging Face gói Free xử lý Text/Base64 Text rất tốt)
+    let fullPrompt = prompt;
+    if (isPDF) {
+      fullPrompt += "\n\n[Dữ liệu mã hóa Base64 của File]: " + base64;
+    } else {
+      fullPrompt += "\n\nFile: " + file.name;
+    }
+
+    // 3. Ép AI hoạt động theo cấu trúc ChatML để đảm bảo trả về định dạng JSON mong muốn
+    const response = await axios.post(
+      `https://api-inference.huggingface.co/models/${model}`,
+      {
+        inputs: `<|im_start|>system\nBạn là trợ lý ảo phân tích báo cáo chuyên nghiệp. Nhiệm vụ của bạn là trích xuất dữ liệu dựa trên yêu cầu và BẮT BUỘC chỉ trả về kết quả dưới dạng một chuỗi JSON thuần túy, cấu trúc gồm các trường: period, summary, metrics, alerts. Không giải thích gì thêm ngoài JSON.<|im_end|>\n<|im_start|>user\n${fullPrompt}<|im_end|>\n<|im_start|>assistant\n`,
+        parameters: {
+          max_new_tokens: 1000,
+          temperature: 0.1 // Giảm xuống 0.1 để AI trích xuất chính xác, ít sáng tạo linh tinh
+        }
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${HF_TOKEN}`, // Sử dụng HF_TOKEN trong file .env.local mới của bạn
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    // 4. Lấy văn bản trả về từ Hugging Face
+    let text = response.data[0].generated_text;
+
+    // Tách bỏ phần Prompt lặp lại (Hugging Face thường trả về cả Prompt gốc lẫn câu trả lời)
+    if (text.includes("<|im_start|>assistant\n")) {
+      text = text.split("<|im_start|>assistant\n").pop();
+    }
+
+    // 5. Tìm và bóc tách chuỗi JSON giống như logic cũ của bạn
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     return parsed;
+
   } catch (error) {
-    console.error("ChatGPT error:", error);
+    console.error("OpenSource AI error:", error);
     return {
       period: "N/A",
       summary: "Lỗi trích xuất: " + error.message,
@@ -139,6 +155,7 @@ Trích xuất thông tin quan trọng từ tài liệu và trả về JSON:
 }
 
 // ===== SEND TO APPS SCRIPT =====
+// (Giữ nguyên hàm sendToAppsScript bên dưới của bạn không cần thay đổi gì cả)
 async function sendToAppsScript(payload) {
   try {
     const response = await axios.post(APPS_SCRIPT_URL, payload, {
