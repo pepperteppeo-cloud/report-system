@@ -4,15 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-  "dev": "vite",
-  "build": "vite build",
-  "lint": "eslint .",
-  "preview": "vite preview",
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d dist"
-},
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
+  },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
+    "axios": "^1.16.1",
+    "date-fns": "^4.3.0",
     "react": "^19.2.6",
+    "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
