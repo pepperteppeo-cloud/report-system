@@ -1,6 +1,7 @@
 {
   "name": "report-system",
   "private": true,
+  "homepage": "https://pepperteppeo-cloud.github.io/report-system/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
